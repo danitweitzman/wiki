@@ -346,7 +346,7 @@ try {
 
     // Remove duplicate phrases
     newPhrases = [...new Set(newPhrases.map((p) => JSON.stringify(p)))].map(
-      (p) => JSON.parse(p)
+      (p) => JSON.parse(p),
     );
 
     // Add new phrases
@@ -435,8 +435,9 @@ try {
     // Filter and clean phrases
     phrases = phrases.filter((phrase) =>
       phrase &&
-      phrase.trim().length > 0 &&
-      phrase.split(" ").length >= 3
+      phrase.text &&
+      phrase.text.trim().length > 0 &&
+      phrase.text.split(" ").length >= 3
     );
 
     // Only proceed if we have phrases to display
@@ -451,8 +452,16 @@ try {
       setTimeout(() => {
         const phraseContent = document.createElement("span");
         phraseContent.className = "phrase";
-        phraseContent.textContent = phrase.charAt(0).toUpperCase() +
-          phrase.slice(1);
+        phraseContent.textContent = phrase.text.charAt(0).toUpperCase() +
+          phrase.text.slice(1);
+
+        // Add source data attributes
+        if (phrase.source) {
+          phraseContent.dataset.user = phrase.source.user || "";
+          phraseContent.dataset.timestamp = phrase.source.timestamp || "";
+          phraseContent.dataset.comment = phrase.source.comment || "";
+        }
+
         phraseContainer.appendChild(phraseContent);
 
         const punctuation = document.createElement("span");
@@ -469,12 +478,20 @@ try {
    */
   function displayStoryOnLoad() {
     let storedPhrases = localStorage.getItem(STORY_KEY) || "";
-    let allPhrases = storedPhrases ? storedPhrases.split("\n") : [];
+    let allPhrases = storedPhrases
+      ? storedPhrases.split("\n").filter((p) => p).map((p) => {
+        try {
+          return JSON.parse(p);
+        } catch {
+          return null;
+        }
+      }).filter((p) => p)
+      : [];
 
     if (allPhrases.length > 0) {
       displayStoryAsPoem(allPhrases);
     } else {
-      document.getElementById("story").innerText = "Loading...";
+      document.getElementById("story").innerText = "";
     }
   }
 
