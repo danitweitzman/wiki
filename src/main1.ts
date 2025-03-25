@@ -17,14 +17,48 @@ const bannedTerms = [
   "article",
   "page",
   "edit",
+  "talk",
+  "user",
+  "forum",
+  "wp",
+  "wiki",
+  "archived",
+  "standalone",
+  "offtopic",
+  "undetected",
+  "file",
+  "discussion",
+  "discussions",
+  "content",
 ];
 
-// Helper: Clean the edit text by removing banned terms
+// Helper: Clean the edit text by removing banned terms and non-English patterns
 function cleanEditText(text: string): string {
-  return text
-    .split(" ")
-    .filter((word) => !bannedTerms.includes(word.toLowerCase()))
-    .join(" ");
+  // Remove wiki-specific patterns
+  text = text.replace(/\[\[.*?\]\]/g, ""); // Remove [[wiki links]]
+  text = text.replace(/\{\{.*?\}\}/g, ""); // Remove {{templates}}
+  text = text.replace(/https?:\/\/\S+/g, ""); // Remove URLs
+  text = text.replace(/\b[A-Z]{2,}\b/g, ""); // Remove uppercase acronyms
+  text = text.replace(/[^\w\s-]/g, " "); // Remove special characters except hyphens
+  text = text.replace(/\d+/g, ""); // Remove numbers
+  text = text.replace(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g, ""); // Remove proper names
+
+  // Split into words, filter out banned terms and non-English patterns
+  const words = text
+    .split(/\s+/)
+    .filter((word) => {
+      word = word.toLowerCase();
+      if (bannedTerms.includes(word)) return false;
+      if (word.length > 15) return false; // Too long to be a real word
+      if (word.length < 3) return false; // Too short to be meaningful
+      if (!/[aeiou]/i.test(word)) return false; // No vowels
+      if (/[^a-z-]/i.test(word)) return false; // Non-letter characters except hyphens
+      if (/^[A-Z]/.test(word)) return false; // Skip words that start with capital (likely names)
+      return true;
+    });
+
+  // Only return unique words
+  return [...new Set(words)].join(" ");
 }
 
 // Helper: Get only the last N words of the story for context
@@ -40,34 +74,41 @@ function getSentenceStructure() {
 
 // Generate prompt for structured phrase
 function buildPrompt(storySnippet: string, edit: string, structure: string[]) {
+  const cleanedEdit = cleanEditText(edit);
+  const availableWords = cleanedEdit.split(" ").filter((w) => w.length > 0);
+
+  if (availableWords.length === 0) {
+    return ""; // Return empty if no valid words found
+  }
+
   return `
-You are writing a continuous story, one phrase at a time. Each phrase should be a complete, meaningful sentence or clause that connects with the previous one.
+You are writing a continuous story, one phrase at a time. Each phrase should be a short, meaningful clause that connects with the previous one.
 
 The story so far: "${storySnippet}"
-Wikipedia inspiration: "${edit}"
+Available words to use (MUST use exactly one): ${availableWords.join(", ")}
 
-Create a complete phrase that:
-1. Makes logical sense in the context of the story
-2. Uses words from the Wikipedia edit when possible
-3. Is grammatically correct
-4. Connects naturally with the previous phrase
-5. Includes connecting words (and, but, while, as, because, etc.) when needed
-6. Forms a complete thought
+IMPORTANT RULES:
+1. Each phrase MUST be EXACTLY 4-6 words long
+2. MUST use EXACTLY ONE word from the provided "Available words" list above
+3. Use ONLY simple, common English words for the rest of the phrase
+4. Each phrase must make logical sense
+5. Connect naturally with the previous phrase
+6. Use connecting words (and, but, while, as) when needed
 
 Respond with ONLY the phrase, no labels or punctuation.
 
-Example:
-Story so far: "The dragon slept quietly in the ancient castle"
-Edit: "Added content about medieval weapons"
-→ while ancient swords hung on the walls
+Examples:
+Story so far: "The dragon slept quietly"
+Available words: armor, weapons
+→ while armor gathered ancient dust
 
-Story so far: "She opened the book to find a hidden message"
-Edit: "Updated article about secret compartments"
-→ as mysterious symbols glowed in the darkness
+Story so far: "She opened the book"
+Available words: compartments, furniture
+→ finding compartments behind old walls
 
-Story so far: "The explorer discovered mysterious artifacts"
-Edit: "Added information about ancient temples"
-→ because the temple held many secrets
+Story so far: "The explorer found artifacts"
+Available words: temples, rituals
+→ inside temples of sacred light
 `;
 }
 

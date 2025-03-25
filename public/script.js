@@ -330,19 +330,36 @@ try {
 
     // Clean and filter new phrases
     newPhrases = newPhrases
-      .filter((phrase) =>
-        phrase &&
-        phrase.text &&
-        phrase.text.trim().length > 0 &&
-        phrase.text.split(" ").length >= 3 &&
-        !phrase.text.toLowerCase().startsWith("edit") &&
-        !phrase.text.toLowerCase().startsWith("as") &&
-        !phrase.text.toLowerCase().startsWith("when") &&
-        !phrase.text.toLowerCase().includes("discussed") &&
-        phrase.text.split(" ").filter((word) =>
-            !bannedWords.includes(word.toLowerCase())
-          ).length >= 2
-      );
+      .filter((phrase) => {
+        if (!phrase || !phrase.text || !phrase.source) return false;
+
+        const text = phrase.text.trim().toLowerCase();
+        const words = text.split(" ");
+
+        // Check phrase length (4-6 words)
+        if (words.length < 4 || words.length > 6) return false;
+
+        // Check if phrase starts with common words we want to avoid
+        if (
+          text.startsWith("edit") ||
+          text.startsWith("as") ||
+          text.startsWith("when") ||
+          text.includes("discussed")
+        ) return false;
+
+        // Get words from the original edit text
+        const editWords = phrase.source.comment
+          .toLowerCase()
+          .split(/\s+/)
+          .map((w) => w.replace(/[^a-z]/g, ""))
+          .filter((w) => w.length >= 3 && !bannedWords.includes(w));
+
+        // Count how many edit words are used in the phrase
+        const editWordsUsed = words.filter((w) => editWords.includes(w));
+
+        // Ensure exactly one edit word is used
+        return editWordsUsed.length === 1;
+      });
 
     // Remove duplicate phrases
     newPhrases = [...new Set(newPhrases.map((p) => JSON.stringify(p)))].map(
@@ -367,6 +384,8 @@ try {
    */
   function resetStory() {
     console.log("Resetting story...");
+
+    // Clear all storage
     localStorage.removeItem(STORY_KEY);
     localStorage.removeItem(LAST_EDIT_KEY);
     localStorage.removeItem("lastWikiEditRcid");
@@ -378,8 +397,13 @@ try {
       storyElement.innerText = "";
     }
 
-    // Start fresh fetch
-    fetchWikiEdits();
+    // Reset the fetching flag
+    isFetching = false;
+
+    // Start fresh fetch after a short delay to ensure cleanup is complete
+    setTimeout(() => {
+      fetchWikiEdits();
+    }, 100);
   }
 
   /**
