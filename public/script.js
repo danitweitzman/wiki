@@ -102,7 +102,7 @@ try {
   /**
    * Gets a contextual word from the server using GPT
    */
-  async function getContextualWord(storySoFar, editText) {
+  async function getContextualWord(storySoFar, editText, editInfo) {
     try {
       console.log("Getting contextual word for:", { storySoFar, editText });
       const response = await fetch("/get-word", {
@@ -121,20 +121,20 @@ try {
 
       const data = await response.json();
       console.log("Received word from server:", data);
-      return data.selectedWord;
+      return {
+        text: data.selectedWord,
+        source: editInfo,
+      };
     } catch (error) {
       console.error("Error getting contextual word:", error);
-      // Fallback to random selection if GPT fails
-      return extractWordRandom(editText);
+      return null;
     }
   }
 
   /**
-   * Main function: fetch recent Wikipedia edits, pick ONE word from each,
-   * skip nonsense, and update the poem.
+   * Main function: fetch recent Wikipedia edits
    */
   async function fetchWikiEdits() {
-    // Prevent concurrent fetches
     if (isFetching) {
       console.log("Already fetching, skipping...");
       return;
@@ -144,7 +144,7 @@ try {
     try {
       console.log("Fetching Wikipedia edits...");
       const response = await fetch(
-        "https://en.wikipedia.org/w/api.php?action=query&list=recentchanges&rcprop=title|comment|timestamp|rcid&format=json&origin=*",
+        "https://en.wikipedia.org/w/api.php?action=query&list=recentchanges&rcprop=title|comment|timestamp|user|rcid&format=json&origin=*",
       );
       const data = await response.json();
       console.log("Received Wikipedia data:", data);
@@ -153,34 +153,15 @@ try {
         throw new Error("No edits found");
       }
 
-      // Get the timestamp and rcid of the last edit we processed
       const lastProcessedTimestamp = localStorage.getItem(LAST_EDIT_KEY);
       const lastProcessedRcid = localStorage.getItem("lastWikiEditRcid");
-      console.log("Last processed:", {
-        timestamp: lastProcessedTimestamp,
-        rcid: lastProcessedRcid,
-      });
 
-      // Filter for only new edits
       const newEdits = data.query.recentchanges.filter((edit) => {
-        // On first run, process all edits
         if (!lastProcessedTimestamp) return true;
-
-        // Check both timestamp and rcid to ensure we haven't processed this edit
         const isNewer = edit.timestamp > lastProcessedTimestamp;
         const isNewEdit = edit.rcid !== lastProcessedRcid;
-
-        console.log("Edit check:", {
-          editTimestamp: edit.timestamp,
-          editRcid: edit.rcid,
-          isNewer,
-          isNewEdit,
-        });
-
         return isNewer && isNewEdit;
       });
-
-      console.log("Found new edits:", newEdits.length);
 
       if (newEdits.length === 0) {
         console.log("No new edits to process");
@@ -188,47 +169,54 @@ try {
       }
 
       let newPhrases = [];
-      console.log("Processing new edits...");
 
-      // Process edits sequentially
       for (const edit of newEdits) {
         const rawText = edit.comment || edit.title;
-        console.log("Processing edit:", {
-          text: rawText,
-          timestamp: edit.timestamp,
-          rcid: edit.rcid,
-        });
+
+        // Format timestamp
+        const date = new Date(edit.timestamp);
+        const formattedDate = `${
+          (date.getMonth() + 1).toString().padStart(2, "0")
+        }.${date.getDate().toString().padStart(2, "0")}.${
+          date.getFullYear().toString().slice(2)
+        } ${date.getHours().toString().padStart(2, "0")}:${
+          date.getMinutes().toString().padStart(2, "0")
+        }`;
+
+        const editInfo = {
+          user: edit.user,
+          timestamp: formattedDate,
+          comment: rawText,
+        };
 
         const phrase = await getContextualWord(
           localStorage.getItem(STORY_KEY) || "",
           rawText,
+          editInfo,
         );
+
         if (phrase) {
-          newPhrases.push(phrase.toLowerCase());
+          newPhrases.push(phrase);
         }
       }
 
       if (newPhrases.length > 0) {
-        // Wait for any existing animations to complete before adding new phrases
         const existingPhrases = (localStorage.getItem(STORY_KEY) || "").split(
           "\n",
         ).filter((p) => p);
-        const totalExistingWords = existingPhrases.reduce(
-          (sum, phrase) => sum + phrase.split(" ").length,
-          0,
-        );
+        const totalExistingWords = existingPhrases.reduce((sum, phrase) => {
+          try {
+            return sum + JSON.parse(phrase).text.split(" ").length;
+          } catch {
+            return sum;
+          }
+        }, 0);
 
-        // Add a small delay to ensure previous animations are complete
         setTimeout(() => {
           updateStory(newPhrases, totalExistingWords);
-          // Update both timestamp and rcid of the most recent edit
           localStorage.setItem(LAST_EDIT_KEY, newEdits[0].timestamp);
           localStorage.setItem("lastWikiEditRcid", newEdits[0].rcid);
-          console.log("Updated last processed:", {
-            timestamp: newEdits[0].timestamp,
-            rcid: newEdits[0].rcid,
-          });
-        }, totalExistingWords * 1000 + 1000); // Wait for existing animations + 1 second buffer
+        }, totalExistingWords * 1000 + 1000);
       }
     } catch (error) {
       console.error("Error fetching Wikipedia edits:", error);
@@ -327,40 +315,48 @@ try {
    * Save new words, display them in poem format.
    */
   function updateStory(newPhrases, startWordIndex) {
-    // load old phrases from storage
     let storedPhrases = localStorage.getItem(STORY_KEY) || "";
     let allPhrases = storedPhrases
-      ? storedPhrases.split("\n").filter((phrase) =>
-        phrase &&
-        phrase.trim().length > 0 &&
-        phrase.split(" ").length >= 3
-      )
+      ? storedPhrases.split("\n").filter((p) => p && p.trim().length > 0).map(
+        (p) => {
+          try {
+            return JSON.parse(p);
+          } catch {
+            return null;
+          }
+        },
+      ).filter((p) => p)
       : [];
 
     // Clean and filter new phrases
     newPhrases = newPhrases
-      .map(cleanPhrase)
       .filter((phrase) =>
         phrase &&
-        phrase.trim().length > 0 &&
-        phrase.split(" ").length >= 3 &&
-        !phrase.toLowerCase().startsWith("edit") &&
-        !phrase.toLowerCase().startsWith("as") &&
-        !phrase.toLowerCase().startsWith("when") &&
-        !phrase.toLowerCase().includes("discussed") &&
-        phrase.split(" ").filter((word) =>
+        phrase.text &&
+        phrase.text.trim().length > 0 &&
+        phrase.text.split(" ").length >= 3 &&
+        !phrase.text.toLowerCase().startsWith("edit") &&
+        !phrase.text.toLowerCase().startsWith("as") &&
+        !phrase.text.toLowerCase().startsWith("when") &&
+        !phrase.text.toLowerCase().includes("discussed") &&
+        phrase.text.split(" ").filter((word) =>
             !bannedWords.includes(word.toLowerCase())
           ).length >= 2
       );
 
     // Remove duplicate phrases
-    newPhrases = [...new Set(newPhrases)];
+    newPhrases = [...new Set(newPhrases.map((p) => JSON.stringify(p)))].map(
+      (p) => JSON.parse(p)
+    );
 
     // Add new phrases
     allPhrases = allPhrases.concat(newPhrases);
 
     // store them back
-    localStorage.setItem(STORY_KEY, allPhrases.join("\n"));
+    localStorage.setItem(
+      STORY_KEY,
+      allPhrases.map((p) => JSON.stringify(p)).join("\n"),
+    );
 
     // Display only the new phrases
     displayNewPhrases(newPhrases, startWordIndex);
@@ -387,31 +383,34 @@ try {
   }
 
   /**
-   * Display only the new phrases, starting after the existing ones
+   * Display new phrases with source information
    */
   function displayNewPhrases(newPhrases, startWordIndex) {
     const storyElement = document.getElementById("story");
     if (!storyElement) return;
 
-    // Clear any existing content first
     if (startWordIndex === 0) {
       storyElement.innerText = "";
     }
 
-    // Create a container for each new phrase
     newPhrases.forEach((phrase, phraseIndex) => {
-      if (!phrase || phrase.trim().length === 0) return;
+      if (!phrase || !phrase.text || phrase.text.trim().length === 0) return;
 
       const phraseContainer = document.createElement("div");
       phraseContainer.className = "phrase-container";
       storyElement.appendChild(phraseContainer);
 
-      // Create the phrase content all at once
       setTimeout(() => {
         const phraseContent = document.createElement("span");
         phraseContent.className = "phrase";
-        phraseContent.textContent = phrase.charAt(0).toUpperCase() +
-          phrase.slice(1);
+        phraseContent.textContent = phrase.text.charAt(0).toUpperCase() +
+          phrase.text.slice(1);
+
+        // Add source data attributes
+        phraseContent.dataset.user = phrase.source.user;
+        phraseContent.dataset.timestamp = phrase.source.timestamp;
+        phraseContent.dataset.comment = phrase.source.comment;
+
         phraseContainer.appendChild(phraseContent);
 
         const punctuation = document.createElement("span");
