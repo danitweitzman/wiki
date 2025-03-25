@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wikipedia Evolving Story</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Courier+Prime&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <main>
+      <div class="title-container">
+        <h1>Live Wikipedia Poem</h1>
+      </div>
+      <button id="info-button" aria-label="Information">ⓘ</button>
+      <div id="info-text" class="hidden">
+        A generative poem that evolves in real-time using Wikipedia edit
+        summaries. Each line is crafted from recent changes happening on
+        Wikipedia right now.
+      </div>
+      <div id="story"></div>
+      <button id="reset-button">↺</button>
+    </main>
+    <script src="script.js"></script>
+  </body>
+</html>

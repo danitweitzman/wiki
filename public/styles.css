@@ -1,0 +1,178 @@
+body {
+  background-color: #1a1a1a;
+  color: #e6e6e6;
+  font-family: "Courier Prime", "Courier New", monospace;
+  line-height: 1.8;
+  padding: 5vh 5vw;
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 20px;
+  opacity: 0.7;
+}
+
+h1 {
+  font-size: 1.2rem;
+  font-weight: normal;
+  margin: 0;
+  opacity: 0.7;
+}
+
+.title-container {
+  text-align: center;
+  margin-bottom: 40px;
+  position: relative;
+}
+
+#info-button {
+  position: fixed;
+  top: 20px;
+  right: 60px;
+  background: none;
+  border: none;
+  color: #e6e6e6;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 10px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+body:hover #info-button {
+  opacity: 0.3;
+}
+
+#info-button:hover {
+  opacity: 1 !important;
+}
+
+#info-text {
+  position: fixed;
+  top: 60px;
+  right: 20px;
+  background: #262626;
+  padding: 15px 20px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  width: max-content;
+  max-width: 300px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s, visibility 0.3s;
+  text-align: left;
+  line-height: 1.5;
+}
+
+#info-text::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  right: 40px;
+  transform: rotate(45deg);
+  width: 10px;
+  height: 10px;
+  background: #262626;
+}
+
+#info-text.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+main {
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+section {
+  background: transparent;
+  padding: 20px;
+}
+
+h2 {
+  font-size: 1.2rem;
+  margin-top: 0;
+  color: #888;
+  font-weight: 400;
+}
+
+#story {
+  font-size: 1.2rem;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.phrase-container {
+  opacity: 0;
+  animation: fadeIn 0.5s ease-in forwards;
+}
+
+.phrase {
+  display: inline;
+  letter-spacing: -0.5px;
+}
+
+.punctuation {
+  display: inline;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Hide the reset button by default, show on hover over the top-right corner */
+#reset-button {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: transparent;
+  border: none;
+  color: #666;
+  font-size: 24px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  cursor: pointer;
+  padding: 10px;
+  font-family: inherit;
+}
+
+body:hover #reset-button {
+  opacity: 0.3;
+}
+
+#reset-button:hover {
+  opacity: 1 !important;
+}
+
+footer {
+  text-align: center;
+  margin-top: 40px;
+  color: #444;
+  font-size: 0.8rem;
+  opacity: 0.5;
+}
+
+.word {
+  opacity: 0;
+  animation: fadeIn 0.3s ease-in forwards;
+  display: inline-block;
+}
+
+.comma {
+  opacity: 0;
+  animation: fadeIn 0.3s ease-in forwards;
+}
